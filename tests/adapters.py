@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from src.embedding import Embedding, RotaryPositionalEmbedding
-from src.layers import Linear, SwiGLU
+from src.layers import Linear, SwiGLU, CausalMultiHeadedSelfAttention
 from src.regularization import RMSNorm
 from src.tokenizer import Tokenizer, SerializedTokenizer
 from src.utils import softmax, scaled_dot_product_attention
@@ -157,7 +157,22 @@ def run_multihead_self_attention(
         Float[Tensor, " ... sequence_length d_model"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    device = q_proj_weight.device
+    dtype = q_proj_weight.dtype
+
+    mhsa = CausalMultiHeadedSelfAttention(
+        d_model,
+        num_heads,
+        device,
+        dtype,
+    )
+
+    mhsa.w_q.W.data = q_proj_weight
+    mhsa.w_k.W.data = k_proj_weight
+    mhsa.w_v.W.data = v_proj_weight
+    mhsa.w_o.W.data = o_proj_weight
+
+    return mhsa.forward(in_features)
 
 
 def run_multihead_self_attention_with_rope(
@@ -197,7 +212,24 @@ def run_multihead_self_attention_with_rope(
         Float[Tensor, " ... sequence_length d_model"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    device = q_proj_weight.device
+    dtype = q_proj_weight.dtype
+
+    mhsa = CausalMultiHeadedSelfAttention(
+        d_model,
+        num_heads,
+        device,
+        dtype,
+    )
+
+    rope = RotaryPositionalEmbedding(theta, d_model // num_heads, max_seq_len, device)
+
+    mhsa.w_q.W.data = q_proj_weight
+    mhsa.w_k.W.data = k_proj_weight
+    mhsa.w_v.W.data = v_proj_weight
+    mhsa.w_o.W.data = o_proj_weight
+
+    return mhsa.forward(in_features, rope, token_positions)
 
 
 def run_rope(

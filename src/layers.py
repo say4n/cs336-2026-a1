@@ -1,4 +1,6 @@
-from einops import einsum
+from src.utils import scaled_dot_product_attention
+from src.embedding import RotaryPositionalEmbedding
+from einops import einsum, rearrange
 import torch
 from torch import nn
 
@@ -78,3 +80,50 @@ class SwiGLU(nn.Module):
         )
 
         return swiglu
+
+
+class CausalMultiHeadedSelfAttention(nn.Module):
+    def __init__(self, d_model, num_heads, device=None, dtype=None):
+        super().__init__()
+
+        self.d_model = d_model
+        self.num_heads = num_heads
+
+        self.d_k = d_model // num_heads
+        self.d_v = d_model // num_heads
+
+        self.w_q = Linear(self.d_model, self.num_heads * self.d_k, device, dtype)
+        self.w_k = Linear(self.d_model, self.num_heads * self.d_k, device, dtype)
+        self.w_v = Linear(self.d_model, self.num_heads * self.d_v, device, dtype)
+
+        self.w_o = Linear(self.num_heads * self.d_v, self.d_model, device, dtype)
+
+    def forward(
+        self, 
+        x: torch.Tensor,
+        rope: RotaryPositionalEmbedding = None,
+        token_positions: torch.Tensor = None, 
+    ) -> torch.Tensor:
+        batch, seq, _ = x.shape
+
+        w_q_x = self.w_q(x)
+        q = rearrange(w_q_x, "batch seq (heads d_k) -> batch heads seq d_k", heads = self.num_heads)
+
+        w_k_x = self.w_k(x)
+        k = rearrange(w_k_x, "batch seq (heads d_k) -> batch heads seq d_k", heads = self.num_heads)
+
+        w_v_x = self.w_v(x)
+        v = rearrange(w_v_x, "batch seq (heads d_v) -> batch heads seq d_v", heads = self.num_heads)
+
+        if rope:
+            if token_positions is None:
+                token_positions = torch.arange(seq, dtype=x.dtype, device=x.device)
+            q = rope(q, token_positions)
+            k = rope(k, token_positions)
+
+        mask = ~torch.triu(torch.ones((seq, seq), device=x.device, dtype=torch.bool), diagonal=1)
+
+        y = scaled_dot_product_attention(q, k, v, mask)
+        y_rearranged = rearrange(y, "batch heads seq d_v -> batch seq (heads d_v)")
+
+        return self.w_o(y_rearranged)

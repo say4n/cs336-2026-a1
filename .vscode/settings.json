@@ -4,6 +4,7 @@
         "endoftext",
         "jaxtyping",
         "keepdim",
+        "mhsa",
         "pbar",
         "pretoken",
         "repr",
@@ -11,6 +12,7 @@
         "silu",
         "swiglu",
         "tinystories",
+        "triu",
         "vocabs"
     ]
 }
