@@ -20,11 +20,11 @@ class Embedding(nn.Module):
         self.dtype = dtype
 
         embedding_matrix = torch.empty(num_embeddings, embedding_dim, dtype=dtype, device=device)
-        self.embedding_matrix = nn.Parameter(embedding_matrix)
+        self.weight = nn.Parameter(embedding_matrix)
 
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
         """Lookup the embedding vectors for the given token IDs."""
-        return self.embedding_matrix[token_ids]
+        return self.weight[token_ids]
 
 class RotaryPositionalEmbedding(nn.Module):
     def __init__(self, theta: float, d_k: int, max_seq_len: int, device=None):

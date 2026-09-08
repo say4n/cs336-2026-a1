@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from src.embedding import Embedding, RotaryPositionalEmbedding
 from src.layers import Linear, SwiGLU, CausalMultiHeadedSelfAttention
-from src.model import TransformerBlock
+from src.model import TransformerBlock, Transformer
 from src.regularization import RMSNorm
 from src.tokenizer import Tokenizer, SerializedTokenizer
 from src.utils import softmax, scaled_dot_product_attention
@@ -62,7 +62,7 @@ def run_embedding(
     """
 
     embedding = Embedding(vocab_size, d_model)
-    embedding.embedding_matrix = torch.nn.Parameter(weights)
+    embedding.weight.data = weights
 
     return embedding.forward(token_ids)
 
@@ -413,7 +413,24 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+    rope = RotaryPositionalEmbedding(
+        rope_theta, d_model // num_heads, context_length, device=in_indices.device
+    )
+
+    model = Transformer(
+        vocab_size,
+        num_layers,
+        d_model,
+        num_heads,
+        d_ff,
+        rope,
+        device=in_indices.device,
+        dtype=torch.float32,
+    )
+
+    model.load_state_dict(weights)
+    
+    return model.forward(in_indices)
 
 
 def run_rmsnorm(
