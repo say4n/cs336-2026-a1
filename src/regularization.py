@@ -19,7 +19,7 @@ class RMSNorm(nn.Module):
         self.dtype = dtype
 
         gain = torch.zeros(self.d_model, device=device, dtype=dtype)
-        self.gain = nn.Parameter(gain)
+        self.weight = nn.Parameter(gain)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Process an input tensor of shape (batch_size, sequence_length, d_model)
@@ -33,7 +33,7 @@ class RMSNorm(nn.Module):
         rms = torch.sqrt(squared_add_eps)
 
         result = einsum(
-            x, self.gain, "batch seq d_model, d_model -> batch seq d_model"
+            x, self.weight, "batch seq d_model, d_model -> batch seq d_model"
         ) / rearrange(rms, "batch (seq v) -> batch seq v", v=1)
 
         return result.to(dtype=out_dtype)

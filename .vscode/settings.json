@@ -8,6 +8,7 @@
         "pbar",
         "pretoken",
         "repr",
+        "rmsn",
         "sdmt",
         "silu",
         "swiglu",

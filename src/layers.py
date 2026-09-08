@@ -26,12 +26,12 @@ class Linear(nn.Module):
             w, mean=0.0, std=std, a=-3 * std**0.5, b=3 * std**0.5
         )
 
-        self.W = nn.Parameter(w)
+        self.weight = nn.Parameter(w)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply the linear transformation to the input"""
 
-        return x @ self.W.T
+        return einsum(x, self.weight, "... d_in, d_out d_in -> ... d_out")
 
 
 class SwiGLU(nn.Module):
@@ -41,13 +41,9 @@ class SwiGLU(nn.Module):
         self.d_model = d_model
         self.d_ff =  d_ff
 
-        w1 = torch.zeros(self.d_ff, self.d_model, device=device, dtype=dtype)
-        w2 = torch.zeros(self.d_model, self.d_ff, device=device, dtype=dtype)
-        w3 = torch.zeros(self.d_ff, self.d_model, device=device, dtype=dtype)
-
-        self.w1 = nn.Parameter(w1)
-        self.w2 = nn.Parameter(w2)
-        self.w3 = nn.Parameter(w3)
+        self.w1 = Linear(d_ff, d_model, device, dtype)
+        self.w2 = Linear(d_model, d_ff, device, dtype)
+        self.w3 = Linear(d_ff, d_model, device, dtype)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -60,24 +56,11 @@ class SwiGLU(nn.Module):
         silu: ... d_ff
         w3_x: ... d_ff
         """
-        w1_x = einsum(
-            self.w1, x, 
-            "d_ff d_model, ... d_model -> ... d_ff"
-        )
-        
-        silu = w1_x * torch.sigmoid(w1_x)
+        a1 = self.w1(x)
 
-        w3_x = einsum(
-            self.w3, x, 
-            "d_ff d_model, ... d_model -> ... d_ff"
-        )
-        
-        silu_w3_x = silu * w3_x
+        silu = a1 * torch.sigmoid(a1)
 
-        swiglu = einsum(
-            silu_w3_x, self.w2,
-            "... d_ff, d_model d_ff -> ... d_model",
-        )
+        swiglu = self.w2(silu * self.w3(x))
 
         return swiglu
 
@@ -92,11 +75,11 @@ class CausalMultiHeadedSelfAttention(nn.Module):
         self.d_k = d_model // num_heads
         self.d_v = d_model // num_heads
 
-        self.w_q = Linear(self.d_model, self.num_heads * self.d_k, device, dtype)
-        self.w_k = Linear(self.d_model, self.num_heads * self.d_k, device, dtype)
-        self.w_v = Linear(self.d_model, self.num_heads * self.d_v, device, dtype)
+        self.q_proj = Linear(self.d_model, self.num_heads * self.d_k, device, dtype)
+        self.k_proj = Linear(self.d_model, self.num_heads * self.d_k, device, dtype)
+        self.v_proj = Linear(self.d_model, self.num_heads * self.d_v, device, dtype)
 
-        self.w_o = Linear(self.num_heads * self.d_v, self.d_model, device, dtype)
+        self.output_proj = Linear(self.num_heads * self.d_v, self.d_model, device, dtype)
 
     def forward(
         self, 
@@ -106,18 +89,18 @@ class CausalMultiHeadedSelfAttention(nn.Module):
     ) -> torch.Tensor:
         batch, seq, _ = x.shape
 
-        w_q_x = self.w_q(x)
+        w_q_x = self.q_proj(x)
         q = rearrange(w_q_x, "batch seq (heads d_k) -> batch heads seq d_k", heads = self.num_heads)
 
-        w_k_x = self.w_k(x)
+        w_k_x = self.k_proj(x)
         k = rearrange(w_k_x, "batch seq (heads d_k) -> batch heads seq d_k", heads = self.num_heads)
 
-        w_v_x = self.w_v(x)
+        w_v_x = self.v_proj(x)
         v = rearrange(w_v_x, "batch seq (heads d_v) -> batch heads seq d_v", heads = self.num_heads)
 
         if rope:
             if token_positions is None:
-                token_positions = torch.arange(seq, dtype=x.dtype, device=x.device)
+                token_positions = torch.arange(seq, dtype=torch.long, device=x.device)
             q = rope(q, token_positions)
             k = rope(k, token_positions)
 
@@ -126,4 +109,4 @@ class CausalMultiHeadedSelfAttention(nn.Module):
         y = scaled_dot_product_attention(q, k, v, mask)
         y_rearranged = rearrange(y, "batch heads seq d_v -> batch seq (heads d_v)")
 
-        return self.w_o(y_rearranged)
+        return self.output_proj(y_rearranged)

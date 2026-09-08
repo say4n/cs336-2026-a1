@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from src.embedding import Embedding, RotaryPositionalEmbedding
 from src.layers import Linear, SwiGLU, CausalMultiHeadedSelfAttention
+from src.model import TransformerBlock
 from src.regularization import RMSNorm
 from src.tokenizer import Tokenizer, SerializedTokenizer
 from src.utils import softmax, scaled_dot_product_attention
@@ -36,7 +37,7 @@ def run_linear(
     """
 
     layer = Linear(d_in, d_out)
-    layer.W = torch.nn.Parameter(weights)
+    layer.weight = torch.nn.Parameter(weights)
 
     return layer.forward(in_features)
 
@@ -96,11 +97,9 @@ def run_swiglu(
     # swiglu.w3.weight.data = w3_weight
 
     swiglu = SwiGLU(d_model, d_ff, w1_weight.device, w1_weight.dtype)
-    swiglu.load_state_dict({
-        "w1": w1_weight,
-        "w2": w2_weight,
-        "w3": w3_weight,
-    })
+    swiglu.w1.weight.data = w1_weight
+    swiglu.w2.weight.data = w2_weight
+    swiglu.w3.weight.data = w3_weight
 
     return swiglu.forward(in_features)
 
@@ -167,10 +166,10 @@ def run_multihead_self_attention(
         dtype,
     )
 
-    mhsa.w_q.W.data = q_proj_weight
-    mhsa.w_k.W.data = k_proj_weight
-    mhsa.w_v.W.data = v_proj_weight
-    mhsa.w_o.W.data = o_proj_weight
+    mhsa.q_proj.weight.data = q_proj_weight
+    mhsa.k_proj.weight.data = k_proj_weight
+    mhsa.v_proj.weight.data = v_proj_weight
+    mhsa.output_proj.weight.data = o_proj_weight
 
     return mhsa.forward(in_features)
 
@@ -224,10 +223,10 @@ def run_multihead_self_attention_with_rope(
 
     rope = RotaryPositionalEmbedding(theta, d_model // num_heads, max_seq_len, device)
 
-    mhsa.w_q.W.data = q_proj_weight
-    mhsa.w_k.W.data = k_proj_weight
-    mhsa.w_v.W.data = v_proj_weight
-    mhsa.w_o.W.data = o_proj_weight
+    mhsa.q_proj.weight.data = q_proj_weight
+    mhsa.k_proj.weight.data = k_proj_weight
+    mhsa.v_proj.weight.data = v_proj_weight
+    mhsa.output_proj.weight.data = o_proj_weight
 
     return mhsa.forward(in_features, rope, token_positions)
 
@@ -326,7 +325,13 @@ def run_transformer_block(
         Float[Tensor, "batch sequence_length d_model"] Tensor with the output of
         running the Transformer block on the input features while using RoPE.
     """
-    raise NotImplementedError
+    rope = RotaryPositionalEmbedding(
+        theta, d_model // num_heads, max_seq_len, device=in_features.device
+    )
+    block = TransformerBlock(d_model, num_heads, d_ff, rope, in_features.device, in_features.dtype)
+    block.load_state_dict(weights)
+
+    return block.forward(in_features)
 
 
 def run_transformer_lm(
@@ -432,7 +437,7 @@ def run_rmsnorm(
         RMSNorm of the `in_features`.
     """
     norm = RMSNorm(d_model, eps, device=weights.device, dtype=weights.dtype)
-    norm.gain = torch.nn.Parameter(weights)
+    norm.weight.data = weights
 
     return norm(in_features)
 
