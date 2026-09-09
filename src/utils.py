@@ -25,3 +25,16 @@ def scaled_dot_product_attention(
 
     return attention
 
+
+def cross_entropy(
+    predicted_logits: torch.Tensor,
+    targets: torch.Tensor,
+) -> torch.Tensor:
+    batch, n_vocab = predicted_logits.shape
+    stable_logits = predicted_logits - predicted_logits.max(dim=-1, keepdim=True).values
+
+    # log(a/b) = log(a) - log(b)
+    log_softmax = stable_logits - stable_logits.exp().sum(dim=-1, keepdim=True).log()
+    selected_probs = log_softmax[torch.arange(batch), targets]
+
+    return -selected_probs.mean(dim=-1)

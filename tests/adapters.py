@@ -5,7 +5,7 @@ from src.layers import Linear, SwiGLU, CausalMultiHeadedSelfAttention
 from src.model import TransformerBlock, Transformer
 from src.regularization import RMSNorm
 from src.tokenizer import Tokenizer, SerializedTokenizer
-from src.utils import softmax, scaled_dot_product_attention
+from src.utils import cross_entropy, softmax, scaled_dot_product_attention
 
 import os
 from collections.abc import Iterable
@@ -527,7 +527,7 @@ def run_cross_entropy(
     Returns:
         Float[Tensor, ""]: The average cross-entropy loss across examples.
     """
-    raise NotImplementedError
+    return cross_entropy(inputs, targets)
 
 
 def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm: float) -> None:
