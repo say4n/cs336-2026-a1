@@ -38,3 +38,9 @@ def cross_entropy(
     selected_probs = log_softmax[torch.arange(batch), targets]
 
     return -selected_probs.mean(dim=-1)
+
+def perplexity(
+    losses: torch.Tensor
+) -> torch.Tensor:
+    m = losses.size(dim=0)
+    return (losses.sum() / m).exp()
