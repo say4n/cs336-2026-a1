@@ -3,6 +3,7 @@ from __future__ import annotations
 from src.embedding import Embedding, RotaryPositionalEmbedding
 from src.layers import Linear, SwiGLU, CausalMultiHeadedSelfAttention
 from src.model import TransformerBlock, Transformer
+from src.optimizer import AdamW
 from src.regularization import RMSNorm
 from src.tokenizer import Tokenizer, SerializedTokenizer
 from src.utils import cross_entropy, softmax, scaled_dot_product_attention
@@ -546,7 +547,7 @@ def get_adamw_cls() -> Any:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
     """
-    raise NotImplementedError
+    return AdamW
 
 
 def run_get_lr_cosine_schedule(
