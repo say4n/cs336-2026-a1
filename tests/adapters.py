@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.data import get_batch
 from src.embedding import Embedding, RotaryPositionalEmbedding
 from src.layers import Linear, SwiGLU, CausalMultiHeadedSelfAttention
 from src.model import TransformerBlock, Transformer
@@ -505,7 +506,7 @@ def run_get_batch(
         is the sampled input sequences, and the second tuple item is the corresponding
         language modeling labels.
     """
-    raise NotImplementedError
+    return get_batch(dataset, batch_size, context_length, device)
 
 
 def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, " ..."]:
