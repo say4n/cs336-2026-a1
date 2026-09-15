@@ -5,6 +5,7 @@ from src.layers import Linear, SwiGLU, CausalMultiHeadedSelfAttention
 from src.model import TransformerBlock, Transformer
 from src.optimizer import AdamW
 from src.regularization import RMSNorm
+from src.scheduler import learning_rate_schedule
 from src.tokenizer import Tokenizer, SerializedTokenizer
 from src.utils import cross_entropy, softmax, scaled_dot_product_attention
 
@@ -575,7 +576,13 @@ def run_get_lr_cosine_schedule(
     Returns:
         Learning rate at the given iteration under the specified schedule.
     """
-    raise NotImplementedError
+    return learning_rate_schedule(
+        it,
+        min_learning_rate,
+        max_learning_rate,
+        warmup_iters,
+        cosine_cycle_iters,
+    )
 
 
 def run_save_checkpoint(
