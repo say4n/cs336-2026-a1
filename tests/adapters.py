@@ -7,7 +7,12 @@ from src.optimizer import AdamW
 from src.regularization import RMSNorm
 from src.scheduler import learning_rate_schedule
 from src.tokenizer import Tokenizer, SerializedTokenizer
-from src.utils import cross_entropy, softmax, scaled_dot_product_attention
+from src.utils import (
+    cross_entropy,
+    gradient_clipping,
+    softmax,
+    scaled_dot_product_attention,
+)
 
 import os
 from collections.abc import Iterable
@@ -67,6 +72,7 @@ def run_embedding(
     embedding.weight.data = weights
 
     return embedding.forward(token_ids)
+
 
 def run_swiglu(
     d_model: int,
@@ -252,8 +258,10 @@ def run_rope(
     Returns:
         Float[Tensor, " ... sequence_length d_k"]: Tensor with RoPEd input.
     """
-    r = RotaryPositionalEmbedding(theta, d_k, max_seq_len, device=in_query_or_key.device)
-    
+    r = RotaryPositionalEmbedding(
+        theta, d_k, max_seq_len, device=in_query_or_key.device
+    )
+
     return r.forward(in_query_or_key, token_positions)
 
 
@@ -330,7 +338,9 @@ def run_transformer_block(
     rope = RotaryPositionalEmbedding(
         theta, d_model // num_heads, max_seq_len, device=in_features.device
     )
-    block = TransformerBlock(d_model, num_heads, d_ff, rope, in_features.device, in_features.dtype)
+    block = TransformerBlock(
+        d_model, num_heads, d_ff, rope, in_features.device, in_features.dtype
+    )
     block.load_state_dict(weights)
 
     return block.forward(in_features)
@@ -431,7 +441,7 @@ def run_transformer_lm(
     )
 
     model.load_state_dict(weights)
-    
+
     return model.forward(in_indices)
 
 
@@ -532,7 +542,9 @@ def run_cross_entropy(
     return cross_entropy(inputs, targets)
 
 
-def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm: float) -> None:
+def run_gradient_clipping(
+    parameters: Iterable[torch.nn.Parameter], max_l2_norm: float
+) -> None:
     """Given a set of parameters, clip their combined gradients to have l2 norm at most max_l2_norm.
 
     Args:
@@ -541,7 +553,10 @@ def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm:
 
     The gradients of the parameters (parameter.grad) should be modified in-place.
     """
-    raise NotImplementedError
+    return gradient_clipping(
+        parameters,
+        max_l2_norm,
+    )
 
 
 def get_adamw_cls() -> Any:
@@ -646,9 +661,9 @@ def get_tokenizer(
         A BPE tokenizer that uses the provided vocab, merges, and special tokens.
     """
     return SerializedTokenizer(
-        vocab = vocab,
-        merges = merges,
-        special_tokens = special_tokens,
+        vocab=vocab,
+        merges=merges,
+        special_tokens=special_tokens,
     )
 
 
@@ -679,11 +694,7 @@ def run_train_bpe(
                 representing that <token1> was merged with <token2>.
                 Merges are ordered by order of creation.
     """
-    t = Tokenizer(
-        input_path,
-        vocab_size,
-        special_tokens
-    )
+    t = Tokenizer(input_path, vocab_size, special_tokens)
 
     t.train()
 

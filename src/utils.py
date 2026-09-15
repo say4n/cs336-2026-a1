@@ -1,5 +1,7 @@
+from collections.abc import Iterable
 from einops import einsum
 import torch
+
 
 def softmax(x: torch.Tensor, dim: int) -> torch.Tensor:
     x_max = torch.max(x, dim=dim, keepdim=True).values
@@ -17,7 +19,7 @@ def scaled_dot_product_attention(
     d_k = Q.shape[-1]
     dim = len(Q.shape) - 1
 
-    qk_norm = einsum(Q, K, "... n d_k, ... m d_k -> ... n m") / d_k ** 0.5
+    qk_norm = einsum(Q, K, "... n d_k, ... m d_k -> ... n m") / d_k**0.5
     qk_masked = torch.where(mask, qk_norm, float("-inf"))
     qk_softmax = softmax(qk_masked, dim)
 
@@ -39,8 +41,30 @@ def cross_entropy(
 
     return -selected_probs.mean(dim=-1)
 
-def perplexity(
-    losses: torch.Tensor
-) -> torch.Tensor:
+
+def perplexity(losses: torch.Tensor) -> torch.Tensor:
     m = losses.size(dim=0)
     return (losses.sum() / m).exp()
+
+
+def gradient_clipping(
+    parameters: Iterable[torch.nn.Parameter], max_l2_norm: float, eps: float = 1e-6
+):
+    grads = [p.grad for p in parameters if p.grad is not None]
+
+    if not grads:
+        return torch.tensor(0, dtype=torch.float)
+
+    total_l2_norm = torch.norm(
+        torch.stack(
+            [torch.norm(g.detach(), p=2) for g in grads]
+        ),
+        p=2
+    )
+
+    if total_l2_norm >= max_l2_norm:
+        scaling_factor = max_l2_norm / (total_l2_norm + eps)
+        for g in grads:
+            g.mul_(scaling_factor)
+
+    return total_l2_norm

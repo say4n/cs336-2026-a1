@@ -4,6 +4,7 @@
         "endoftext",
         "jaxtyping",
         "keepdim",
+        "linalg",
         "mhsa",
         "pbar",
         "pretoken",
